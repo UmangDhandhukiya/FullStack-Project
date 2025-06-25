@@ -19,8 +19,8 @@ const signUp = async (req, res) => {
     }
 
     //hash the password
-    const salt = bcrypt.genSaltSync(10);
-    const passwordHash = bcrypt.hashSync(password, salt);
+    const salt = bcrypt.genSaltSync(10); //only write salt = 10 then working fine not used to method
+    const passwordHash = bcrypt.hashSync(password, salt); //with await allways use hash
 
     //jet token
     const token = jwt.sign({ email }, "supersecret", { expiresIn: "365d" });
@@ -51,7 +51,7 @@ const login = async (req, res) => {
       return res.status(400).json({
         message: "some field missing",
       });
-    }
+    } 
 
     let user = await User.findOne({ email });
     if (!user) {
