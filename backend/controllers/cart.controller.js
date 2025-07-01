@@ -2,6 +2,9 @@ const jwt = require("jsonwebtoken");
 const { Cart } = require("../model/Cart");
 const { User } = require("../model/User");
 const { Product } = require("../model/Product");
+const { product } = require("./product.controller");
+const sendEmail = require("../utills/userEmail");
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
 
 const cart = async (req, res) => {
   try {
@@ -113,11 +116,15 @@ const updateCart = async (req, res) => {
       return res.status(404).json({ message: "Product not found" });
     }
 
-    const totalPrice = item.product.price * item.qty;
-    
+    const totalPrice = item.product.price;
+    console.log(totalPrice);
+
     //action logic
     if (action === "increase") {
+      console.log(action);
       item.qty += 1;
+      console.log(item.qty);
+
       cart.total += totalPrice;
     } else if (action === "decrease") {
       if (item.qty > 1) {
@@ -137,10 +144,77 @@ const updateCart = async (req, res) => {
     } else {
       res.status(400).json({ message: "Please enter valid operation" });
     }
+
+    await cart.save(); // Save changes
+    return res.status(200).json({ message: "Cart updated" }); // ✅ Add this
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Internal server error" });
   }
 };
 
-module.exports = { cart, addToCart, updateCart };
+const payment = async (req, res) => {
+  try {
+    const { token } = req.headers;
+    const decodedToken = jwt.verify(token, "supersecret");
+    const user = await User.findOne({ email: decodedToken.email }).populate({
+      path: "cart",
+      populate: {
+        path: "products.product",
+        model: "Product",
+      },
+    });
+
+    if (!user || !user.cart || user.cart.products.length === 0) {
+      res.status(404).json({ message: "user or cart not found!!" });
+    }
+
+    //payment
+    const lineItems = user.cart.products.map((item) => {
+      return {
+        price_data: {
+          currency: "inr",
+          product_data: {
+            name: item.product.name,
+          },
+          unit_amount: item.product.price * 100,
+        },
+        quantity: item.qty,
+      };
+    });
+
+    const currentUrl = process.env.CLIENT_URL;
+
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ["card"],
+      line_items: lineItems,
+      mode: "payment",
+      success_url: `${currentUrl}/success`,
+      cancel_url: `${currentUrl}/cancel`,
+    });
+
+    //send mail to user
+    await sendEmail(
+      user.email,
+      user.cart.products.map((item) => ({
+        name: item.product.name,
+        price: item.product.price,
+      }))
+    );
+
+    //empty cart
+    user.cart.products = [];
+    user.cart.total = 0;
+    await user.cart.save();
+    await user.save();
+    res.status(200).json({
+      message: "get the payment url",
+      url: session.url,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "internal serever error" });
+  }
+};
+
+module.exports = { cart, addToCart, updateCart, payment };
