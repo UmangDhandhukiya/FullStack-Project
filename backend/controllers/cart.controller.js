@@ -35,60 +35,128 @@ const cart = async (req, res) => {
   }
 };
 
+// const addToCart = async (req, res) => {
+//   try {
+//     let { productId, qty } = req.body;
+//     let { token } = req.headers;
+//     let decodedToken = jwt.verify(token, "supersecret");
+//     let user = await User.findOne({ email: decodedToken.email });
+
+//     if (!productId || !qty) {
+//       res.status(400).json({ message: "some field are missing" });
+//     }
+
+//     if (user) {
+//       const product = await Product.findById(productId);
+//       const cart = await Cart.findOne({ _id: user.cart_id });
+
+//       if (cart) {
+//         const exists = cart.products.some((p) => {
+//           p.product.toString() === product.toString();
+//         });
+
+//         if (exists) {
+//           return res.status(404).json({
+//             message: "Go to Cart",
+//           });
+//         }
+//         cart.products.push({ product: productId });
+//         cart.total += product.price * qty;
+//         await cart.save();
+//       } else {
+//         const newCart = await Cart.create({
+//           products: [
+//             {
+//               product: productId,
+//               qty: qty,
+//             },
+//           ],
+//           total: product.price * qty,
+//         });
+//         user.cart = newCart._id;
+//         await user.save();
+//       }
+//       return res.status(200).json({ message: "product added successfully" });
+//     }
+
+//     if (!user) {
+//       res.status(404).json({
+//         message: "User not found",
+//       });
+//     }
+//   } catch (error) {
+//     console.log(error);
+//     res.status(400).json({ message: "internal serevr error" });
+//   }
+// };
+
 const addToCart = async (req, res) => {
-  try {
-    let { productId, qty } = req.body;
-    let { token } = req.headers;
-    let decodedToken = jwt.verify(token, "supersecret");
-    let user = await User.findOne({ email: decodedToken.email });
+    try {
 
-    if (!productId || !qty) {
-      res.status(400).json({ message: "some field are missing" });
-    }
-
-    if (user) {
-      const product = await Product.findById(productId);
-      const cart = await Cart.findOne({ _id: user.cart_id });
-
-      if (cart) {
-        const exists = cart.products.some((p) => {
-          p.product.toString() === product.toString();
-        });
-
-        if (exists) {
-          return res.status(404).json({
-            message: "Go to Cart",
-          });
+        const { qty, productID } = req.body
+        if (!qty || !productID) {
+            return res.status(400).json({ message: "Product Or Quantity is missing!!" })
         }
-        cart.products.push({ product: productId });
-        cart.total += product.price * qty;
-        await cart.save();
-      } else {
-        const newCart = await Cart.create({
-          products: [
-            {
-              product: productId,
-              qty: qty,
-            },
-          ],
-          total: product.price * qty,
-        });
-        user.cart = newCart._id;
-        await user.save();
-      }
-      return res.status(200).json({ message: "product added successfully" });
-    }
 
-    if (!user) {
-      res.status(404).json({
-        message: "User not found",
-      });
+        const { token } = req.headers
+        let decodedToken = jwt.verify(token, "supersecret")
+
+        let user = await User.findOne({ email: decodedToken.email })
+        if (!user) {
+            return res.status(400).json({ message: "Invalid Credentials" })
+        }
+
+        const product = await Product.findById(productID)
+        if (!product) { return res.status(400).json({ message: "Product not found" }) }
+
+        let cart;
+
+        if (user.cart) {
+            cart = await Cart.findById(user.cart)
+
+            //if cart is not found even though user has cart ID
+
+            if (!cart) {
+                cart = await Cart.create({
+                    products: [{ product: productID, qty }],
+                    total: product.price * qty,
+                })
+
+                user.cart = cart._id
+                await user.save()
+            } else {
+                const exists = cart.products.some(
+                    (p) => p.product.toString() === productID.toString()
+                )
+
+                if (exists) {
+                    return res.status(409).json({ message: "Go To Cart" })
+
+                }
+                cart.products.push({ product: productID, qty })
+                cart.total += product.price * qty
+                await cart.save()
+            }
+        } else {
+            // First Time C art Creation
+
+            cart = await Cart.create({
+                products: [{ product: productID, qty }],
+                total: product.price * qty,
+            })
+
+            user.cart = cart._id
+            await user.save()
+        }
+
+        res.status(200).json({ message: "Product Added to cart" })
+
+    } catch (error) {   
+        console.log(error)
+        res.status(500).json({ message: "Internal server error" })
+
     }
-  } catch (error) {
-    console.log(error);
-    res.status(400).json({ message: "internal serevr error" });
-  }
-};
+}
 
 const updateCart = async (req, res) => {
   try {
@@ -218,3 +286,4 @@ const payment = async (req, res) => {
 };
 
 module.exports = { cart, addToCart, updateCart, payment };
+         
