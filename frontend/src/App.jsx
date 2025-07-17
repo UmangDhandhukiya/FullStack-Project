@@ -5,6 +5,9 @@ import Hero from "./components/Hero";
 import Reg from "./pages/Reg";
 import Home from "./pages/Home";
 import Login from "./pages/Login";
+import Product from "./pages/Product";
+import AddProduct from "./pages/AddProduct";
+import EditProduct from "./pages/EditProduct";
 
 const router = createBrowserRouter([
   {
@@ -26,6 +29,18 @@ const router = createBrowserRouter([
       {
         path: "/home",
         element: <Home />,
+      },
+      {
+        path: "/products",
+        element: <Product />,
+      },
+      {
+        path: "/addProduct",
+        element: <AddProduct />,
+      },
+      {
+        path: "/editProduct/:id",
+        element: <EditProduct />,
       },
     ],
   },
